@@ -49,9 +49,40 @@ router.get("/", async (req, res) => {
 
 
 // Update existing journal entry (PUT)
+router.put("/:id", async (req, res) => {
+  try {
+    const { title, content } = req.body;
+    const result = sentiment.analyze(content);
+    const mood =
+      result.score > 1 ? "positive" :
+      result.score < -1 ? "negative" : 
+      "neutral";
 
+    const updatedEntry = await Entry.findByIdAndUpdate(
+      req.params.id,
+      { 
+        title, 
+        content, 
+        mood, 
+        sentimentScore: result.score, 
+        updatedAt: new Date() 
+      },
+      { new: true }
+    );
+    res.json(updatedEntry);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Delete existing journal entry (DELETE)
-
+router.delete("/:id", async (req, res) => {
+  try {
+    await Entry.findByIdAndDelete(req.params.id);
+    res.json({ message: "Entry deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 export default router; 
