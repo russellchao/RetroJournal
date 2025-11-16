@@ -96,6 +96,9 @@ router.get("/stats/daily", async (req, res) => {
     try {
         const moodData = await Entry.aggregate([
         {
+            $match: { userId: req.auth.userId }
+        },
+        {
             $addFields: {
             // Convert to NY timezone (UTC-5 hours for standard time, UTC-4 for daylight saving)
             nyDate: {
@@ -202,6 +205,8 @@ router.get("/generate_new_weekly_recap", async (req, res) => {
             - Key themes or patterns
             - Wins or improvements
             - One gentle suggestion for next week
+
+            Try to keep it concise and uplifting.
 
             Entries:
             ${entries.map(e => `Date: ${e.createdAt}\nMood: ${e.mood}\nText: ${e.content}`).join("\n\n")}
