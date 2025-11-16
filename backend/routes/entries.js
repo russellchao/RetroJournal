@@ -65,7 +65,7 @@ router.put("/:id", async (req, res) => {
         content, 
         mood, 
         sentimentScore: result.score, 
-        updatedAt: new Date() 
+        updatedAt: new Date()
       },
       { new: true }
     );
@@ -80,6 +80,77 @@ router.delete("/:id", async (req, res) => {
   try {
     await Entry.findByIdAndDelete(req.params.id);
     res.json({ message: "Entry deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get the states for entries grouped by day
+router.get("/stats/daily", async (req, res) => { 
+  try {
+    const moodData = await Entry.aggregate([
+      {
+        $addFields: {
+          // Convert to NY timezone (UTC-5 hours for standard time, UTC-4 for daylight saving)
+          nyDate: {
+            $dateToString: {
+              format: "%Y-%m-%d",
+              date: "$createdAt",
+              timezone: "America/New_York"
+            }
+          }
+        }
+      },
+      {
+        $group: {
+          _id: "$nyDate",
+          averageMoodScore: { $avg: "$sentimentScore" }
+        }
+      },
+      {
+        $project: {
+          _id: 0, 
+          date: "$_id",
+          averageMoodScore: 1,
+          overallMood: {
+            $cond: {
+              if: { $gt: ["$averageMoodScore", 1] },
+              then: "positive",
+              else: {
+                $cond: {
+                  if: { $lt: ["$averageMoodScore", -1] },
+                  then: "negative",
+                  else: "neutral"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        $sort: { date: 1 }
+      }
+    ]);
+    res.json(moodData);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get the stats for every entry
+router.get("/stats/summary", async (req, res) => { 
+  try {
+    const totalEntries = await Entry.countDocuments({ userId: req.auth.userId });
+    const positiveEntries = await Entry.countDocuments({ userId: req.auth.userId, mood: "positive" });
+    const neutralEntries = await Entry.countDocuments({ userId: req.auth.userId, mood: "neutral" });
+    const negativeEntries = await Entry.countDocuments({ userId: req.auth.userId, mood: "negative" });
+
+    res.json({
+      totalEntries,
+      positiveEntries,
+      neutralEntries,
+      negativeEntries
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

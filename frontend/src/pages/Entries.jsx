@@ -1,14 +1,18 @@
 import { useAuth, SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
 import { useEffect, useState } from "react";
 import EntryEditor from "./EntryEditor";
+import Dashboard from "./Dashboard";
 
 export default function Entries() {
     const { isSignedIn, getToken } = useAuth();
     const [entries, setEntries] = useState([]);
+    const [entriesByDate, setEntriesByDate] = useState([]);
+    const [selectedDate, setSelectedDate] = useState(null);
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [editingEntry, setEditingEntry] = useState(null); // if null, creating new entry; else, editing existing entry
+    const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   
-    function truncateText(text, wordLimit = 10) {
+    function truncateText(text, wordLimit = 20) {
         // Truncate the entry's text to a certain number of words
         const words = text.split(' ');
         if (words.length > wordLimit) {
@@ -38,6 +42,13 @@ export default function Entries() {
         setIsEditorOpen(true);
     }
 
+    async function filterEntriesByDate(date) {
+        const filteredEntries = entries.filter(entry => {
+            const entryDate = new Date(entry.createdAt).toLocaleDateString("en-US", { timeZone: "America/New_York" });
+            return entryDate === date;
+        });
+        setEntriesByDate(filteredEntries);
+    }
 
     async function fetchEntries() {
         console.log("Fetching entries...");
@@ -50,6 +61,7 @@ export default function Entries() {
             },
         });
         const data = await response.json();
+
         setEntries(data);
     }
 
@@ -66,7 +78,11 @@ export default function Entries() {
             body: JSON.stringify({ title, content }),
         });
         const newEntry = await response.json();
+
         setEntries((prevEntries) => [newEntry, ...prevEntries]);
+
+        // Reset the selected date to today to show the newly created entry (in case user was viewing another date)
+        setSelectedDate(new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" }));
     }
 
     async function updateEntry(id, title, content) {
@@ -82,9 +98,8 @@ export default function Entries() {
             body: JSON.stringify({ title, content }),
         });
         const updatedEntry = await response.json();
-        setEntries((prevEntries) =>
-            prevEntries.map((entry) => (entry._id === id ? updatedEntry : entry))
-        );
+
+        setEntries((prevEntries) => prevEntries.map((entry) => (entry._id === id ? updatedEntry : entry)));
     }
 
     async function deleteEntry(id) {
@@ -97,20 +112,37 @@ export default function Entries() {
                 Authorization: `Bearer ${token}`,
             },
         });
+
         setEntries((prevEntries) => prevEntries.filter((entry) => entry._id !== id));
     }
 
-
     useEffect(() => {
         // Fetch all entries upon sign in/sign up and when an entry is added/deleted/updated
-        if (isSignedIn) {
-            fetchEntries();
+        async function initialize() {
+            if (isSignedIn) {
+                await fetchEntries();
+            }
         }
+
+        initialize();
     }, [isSignedIn, getToken]);
 
+    useEffect(() => {
+        // Filter entries by date upon initial load and when entries or selected date changes
+        if (entries.length > 0) {
+            if (!selectedDate) {
+                // Initially filter entries for today's date in US Eastern Time
+                const todaysDate = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" });
+                setSelectedDate(todaysDate);
+                filterEntriesByDate(todaysDate);
+            } else {
+                filterEntriesByDate(selectedDate);
+            }
+        }
+    }, [entries, selectedDate]);
 
     return (
-        <div style={{ textAlign: "center", marginTop: "50px"}}>
+        <div style={{ textAlign: "center", marginTop: "50px" }}>
             {/* ---------- Entry Editor Modal ---------- */}
             {isEditorOpen && (
                 <EntryEditor 
@@ -120,11 +152,34 @@ export default function Entries() {
                 />
             )}
 
-            {/* ---------- Main Page ---------- */}
+            {/* ---------- Dashboard Modal ---------- */}
+            {isDashboardOpen && (
+                <Dashboard 
+                    entries={entries}
+                    onClose={() => setIsDashboardOpen(false)}
+                />
+            )}
 
-            {/* User Profile Button */}
+            {/* ---------- Main Page ---------- */}
+            {/* RetroJournal Logo */}
+            <div style={{ position: "absolute", top: "2px", left: "20px" }}>
+                <h1 style={{ fontSize: '2em' }}>📝 RetroJournal</h1>
+            </div>
+
+            {/* Dashboard and User Profile Button */}
             <div style={{ position: "absolute", top: "20px", right: "20px" }}>
-                <UserButton 
+                <button 
+                style={{ fontSize: "1.2em", top: "20px" }}
+                    onClick={() => setIsDashboardOpen(true)}
+                >
+                    Dashboard
+                </button>
+
+                &nbsp;
+                &nbsp;
+                &nbsp;
+
+                <UserButton
                     appearance={{
                     elements: {
                         rootBox: { fontSize: "1.2em" },
@@ -141,15 +196,35 @@ export default function Entries() {
             </div>
 
             <h1>Journal Entries</h1>
-            {/* Create New Entry Button */}
-            <button 
-                style={{ fontSize: "1.5em", padding: "10px 20px" }}
-                onClick={() => editNewEntry()}
-            >
-                Create New Entry
-            </button>
+
+            <div>
+                {/* Create New Entry Button */}
+                <button 
+                    style={{ fontSize: "1.5em", padding: "10px 20px" }}
+                    onClick={() => editNewEntry()}
+                >
+                    Create New Entry
+                </button>
+
+                &nbsp;
+                &nbsp;
+                &nbsp;
+
+                {/* Date Picker */}
+                <input
+                    type="date"
+                    value={selectedDate ? new Date(selectedDate).toISOString().split('T')[0] : ''}
+                    style={{ fontSize: "1.2em", padding: "8px" }}
+                    onChange={(e) => {
+                        const dateValue = e.target.value;
+                        const formattedDate = new Date(dateValue + 'T00:00:00').toLocaleDateString("en-US", { timeZone: "America/New_York" });
+                        setSelectedDate(formattedDate);
+                    }}
+                />
+            </div>
+            
             {/* Journal Entries List */}
-            {entries.map((entry) => (
+            {entriesByDate.map((entry) => (
                 <div 
                     key={entry._id}
                     style={{
@@ -158,7 +233,7 @@ export default function Entries() {
                         borderRadius: "10px",
                         padding: "15px",
                         margin: "20px auto",
-                        maxWidth: "400px",
+                        maxWidth: "800px",
                         textAlign: "left",
                         boxShadow: "0 2px 4px rgba(0, 0, 0, 0.3)",
                         position: "relative",
@@ -169,16 +244,16 @@ export default function Entries() {
                     {entry.mood && 
                         <p style={{ 
                             fontStyle: "italic", 
-                            color: entry.mood === "positive" ? "green" : entry.mood === "negative" ? "red" : "white", 
+                            color: entry.mood === "positive" ? "green" : entry.mood === "negative" ? "red" : "yellow", 
                             fontSize: "1.2em",
                             marginBottom: "2px"
                         }}>
-                            Mood: {entry.mood}
+                            Mood: {entry.mood} (Sentiment Score: {entry.sentimentScore})
                         </p>
                     }
                     <p style={{ fontSize: "1.1em", marginBottom: "2px", color: "magenta" }}>
-                        Created: {new Date(entry.createdAt).toLocaleString()},
-                        Updated: {new Date(entry.updatedAt).toLocaleString()}
+                        Created: {new Date(entry.createdAt).toLocaleString("en-US", { timeZone: "America/New_York" })},
+                        Updated: {new Date(entry.updatedAt).toLocaleString("en-US", { timeZone: "America/New_York" })}
                     </p>
                     
                     {/* Edit and Delete entry buttons */}
@@ -218,6 +293,10 @@ export default function Entries() {
                     </div>
                 </div>
             ))}   
+
+            &nbsp;
+            &nbsp;
+            &nbsp;
         </div>
     );
 }
