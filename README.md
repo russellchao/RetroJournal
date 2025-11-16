@@ -15,3 +15,6 @@ Modern social media encourages overstimulation and endless scrolling. RetroJourn
 - Google Generative AI for mood recap generation
 - Sentiment analysis using Sentiment.js
 - Chart.js for mood visualization
+
+## Link to App
+[RetroJournal on HackRPI](https://retrojournal-eight.vercel.app/)
