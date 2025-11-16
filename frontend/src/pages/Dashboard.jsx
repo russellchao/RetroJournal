@@ -17,6 +17,35 @@ export default function Dashboard({ entries, onClose }) {
     const { isSignedIn, getToken } = useAuth();
     const [dailyStats, setDailyStats] = useState([]);
     const [summaryStats, setSummaryStats] = useState({});
+    const [recapDate, setRecapDate] = useState("");
+    const [weeklyRecap, setWeeklyRecap] = useState("");
+
+    async function generate_new_weekly_recap() {
+        try {
+            const generateRes = await fetch(`${import.meta.env.VITE_API_URL}/api/entries/generate_new_weekly_recap`, {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${await getToken()}`,
+                },
+            });
+            
+            if (!generateRes.ok) {
+                const error = await generateRes.json();
+                console.error("Failed to generate recap:", error);
+                setWeeklyRecap("Unable to generate recap. Please check your API key or try again later.");
+                setRecapDate(new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" }));
+                return;
+            }
+            
+            const newRecapData = await generateRes.json();
+            setWeeklyRecap(newRecapData.recap);
+            setRecapDate(new Date(newRecapData.todaysDate).toLocaleDateString("en-US", { timeZone: "America/New_York" }));
+        } catch (error) {
+            console.error("Error generating new weekly recap:", error);
+            setWeeklyRecap("Unable to generate recap. Please try again later.");
+            setRecapDate(new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" }));
+        }
+    }
 
     useEffect(() => {
         async function fetchStats() {
@@ -39,6 +68,25 @@ export default function Dashboard({ entries, onClose }) {
                 });
                 const summaryData = await summaryRes.json();
 
+                // Get the weekly recap
+                const recapRes = await fetch(`${import.meta.env.VITE_API_URL}/api/entries/weekly_recap`, {
+                    method: "GET",
+                    headers: {
+                        Authorization: `Bearer ${await getToken()}`,
+                    },
+                });
+                const recapData = await recapRes.json();
+
+                // Set a new weekly recap if it's a new day (eastern time)
+                const today = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" });
+                const recapDate = new Date(recapData.todaysDate).toLocaleDateString("en-US", { timeZone: "America/New_York" });
+                if (recapDate !== today) {
+                    await generate_new_weekly_recap();
+                } else {
+                    setWeeklyRecap(recapData.recap);
+                    setRecapDate(recapData.todaysDate);
+                }
+                
                 setDailyStats(dailyData);
                 setSummaryStats(summaryData);
             } catch (error) {
@@ -159,6 +207,12 @@ export default function Dashboard({ entries, onClose }) {
                             }} 
                         />
                     </div>
+                </div>
+
+                {/* ---------- Weekly Recap ---------- */}
+                <div>
+                    <h2>Weekly Recap {recapDate && `(as of ${recapDate})`}:</h2>
+                    <h2 style={{ color: 'white' }}>{weeklyRecap || "Loading recap..."}</h2>
                 </div>
 
             </div>
