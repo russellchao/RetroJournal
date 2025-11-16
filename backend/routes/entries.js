@@ -4,6 +4,9 @@ import Sentiment from "sentiment";
 import WeeklyRecap from "../models/WeeklyRecap.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const router = express.Router();
 const sentiment = new Sentiment();
@@ -174,7 +177,7 @@ router.get("/weekly_recap", async (req, res) => {
     }
 });
 
-// Generate a weekly mood recap with Generative AI
+// Generate a weekly mood recap with Generative AI and save to DB
 router.get("/generate_new_weekly_recap", async (req, res) => {
     try {
         console.log("Generating new weekly recap for user:", req.auth.userId);
@@ -188,12 +191,9 @@ router.get("/generate_new_weekly_recap", async (req, res) => {
         });
 
         console.log(`Found ${entries.length} entries in the last 7 days`);
-
         if (entries.length === 0) {
             return res.status(400).json({ error: "No entries found in the last 7 days" });
         }
-
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const prompt = `
             Analyze these journal entries from the past week. Create a weekly mood recap.
@@ -208,6 +208,7 @@ router.get("/generate_new_weekly_recap", async (req, res) => {
         `;
 
         console.log("Calling Gemini API...");
+        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
         const result = await model.generateContent(prompt);
         const recap = result.response.text();
         console.log("Recap generated successfully");

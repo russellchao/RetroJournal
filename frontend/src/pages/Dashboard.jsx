@@ -22,6 +22,7 @@ export default function Dashboard({ entries, onClose }) {
 
     async function generate_new_weekly_recap() {
         try {
+            // This endpoint also saves the new recap to the database
             const generateRes = await fetch(`${import.meta.env.VITE_API_URL}/api/entries/generate_new_weekly_recap`, {
                 method: "GET",
                 headers: {
@@ -211,7 +212,7 @@ export default function Dashboard({ entries, onClose }) {
 
                 {/* ---------- Weekly Recap ---------- */}
                 <div>
-                    <h2>Weekly Recap {recapDate && `(as of ${recapDate})`}:</h2>
+                    <h2>AI-Powered Weekly Recap {recapDate && `(as of ${new Date(recapDate).toLocaleDateString('en-US', { timeZone: 'America/New_York' })})`}:</h2>
                     <h2 style={{ color: 'white' }}>{weeklyRecap || "Loading recap..."}</h2>
                 </div>
 
